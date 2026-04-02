@@ -26,22 +26,41 @@ export default async ({ req, res, log, error }) => {
 
     log(`Received ${method} request to ${path}`);
 
-    // Route: GET /posts - Fetch all posts
+    // Route: GET /posts - Fetch all posts (filtered by clientId)
     if (path === "/posts" && method === "GET") {
+      // Get clientId from query parameters or headers
+      const clientId = req.query?.clientId || req.headers["x-client-id"];
+
+      if (!clientId) {
+        return res.json(
+          {
+            success: false,
+            message:
+              "clientId is required. Provide it as query parameter (?clientId=xxx) or header (x-client-id)",
+          },
+          400,
+        );
+      }
+
       const posts = await databases.listDocuments(
         databaseId,
         postsCollectionId,
-        [Query.orderDesc("$createdAt"), Query.limit(25)],
+        [
+          Query.equal("clientId", clientId),
+          Query.orderDesc("$createdAt"),
+          Query.limit(25),
+        ],
       );
 
       return res.json({
         success: true,
         data: posts.documents,
         total: posts.total,
+        clientId,
       });
     }
 
-    // Route: GET /posts/:id - Fetch single post
+    // Route: GET /posts/:id - Fetch single post (validated by clientId)
     if (path.startsWith("/posts/") && method === "GET") {
       const postId = path.split("/")[2];
 
@@ -55,11 +74,35 @@ export default async ({ req, res, log, error }) => {
         );
       }
 
+      // Get clientId from query parameters or headers
+      const clientId = req.query?.clientId || req.headers["x-client-id"];
+
+      if (!clientId) {
+        return res.json(
+          {
+            success: false,
+            message: "clientId is required. Provide it as query parameter (?clientId=xxx) or header (x-client-id)",
+          },
+          400,
+        );
+      }
+
       const post = await databases.getDocument(
         databaseId,
         postsCollectionId,
         postId,
       );
+
+      // Verify the post belongs to the specified client
+      if (post.clientId !== clientId) {
+        return res.json(
+          {
+            success: false,
+            message: "Post not found or access denied",
+          },
+          404,
+        );
+      }
 
       return res.json({
         success: true,
@@ -85,8 +128,8 @@ export default async ({ req, res, log, error }) => {
         endpoints: [
           { path: "/", method: "GET", description: "API information" },
           { path: "/health", method: "GET", description: "Health check" },
-          { path: "/posts", method: "GET", description: "List all posts" },
-          { path: "/posts/:id", method: "GET", description: "Get single post" },
+          { path: "/posts?clientId=xxx", method: "GET", description: "List posts by clientId" },
+          { path: "/posts/:id?clientId=xxx", method: "GET", description: "Get single post by clientId" },
         ],
       });
     }
