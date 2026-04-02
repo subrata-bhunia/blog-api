@@ -18,6 +18,52 @@ export default async ({ req, res, log, error }) => {
   // Get database and collection IDs from environment
   const databaseId = process.env.APPWRITE_DATABASE_ID || "";
   const postsCollectionId = process.env.APPWRITE_POSTS_COLLECTION_ID || "posts";
+  const categoriesCollectionId = process.env.APPWRITE_CATEGORIES_COLLECTION_ID || "categories";
+  const tagsCollectionId = process.env.APPWRITE_TAGS_COLLECTION_ID || "tags";
+
+  // Helper function to populate category and tags
+  const populatePostRelations = async (post) => {
+    try {
+      // Populate category
+      if (post.categoryId) {
+        try {
+          const category = await databases.getDocument(
+            databaseId,
+            categoriesCollectionId,
+            post.categoryId,
+          );
+          post.category = category;
+        } catch (err) {
+          post.category = null;
+        }
+      } else {
+        post.category = null;
+      }
+
+      // Populate tags
+      if (post.tagIds && Array.isArray(post.tagIds) && post.tagIds.length > 0) {
+        try {
+          const tagPromises = post.tagIds.map((tagId) =>
+            databases.getDocument(databaseId, tagsCollectionId, tagId).catch(() => null),
+          );
+          const tags = await Promise.all(tagPromises);
+          post.tags = tags.filter(tag => tag !== null);
+        } catch (err) {
+          post.tags = [];
+        }
+      } else {
+        post.tags = [];
+      }
+
+      // Remove the ID fields
+      delete post.categoryId;
+      delete post.tagIds;
+
+      return post;
+    } catch (err) {
+      return post;
+    }
+  };
 
   try {
     // Parse request path and method
@@ -52,9 +98,14 @@ export default async ({ req, res, log, error }) => {
         ],
       );
 
+      // Populate category and tags for each post
+      const populatedPosts = await Promise.all(
+        posts.documents.map(post => populatePostRelations(post))
+      );
+
       return res.json({
         success: true,
-        data: posts.documents,
+        data: populatedPosts,
         total: posts.total,
         clientId,
       });
@@ -104,9 +155,12 @@ export default async ({ req, res, log, error }) => {
         );
       }
 
+      // Populate category and tags
+      const populatedPost = await populatePostRelations(post);
+
       return res.json({
         success: true,
-        data: post,
+        data: populatedPost,
       });
     }
 
