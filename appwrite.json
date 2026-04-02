@@ -1,0 +1,28 @@
+{
+  "projectId": "",
+  "projectName": "blog-cms",
+  "functions": [
+    {
+      "$id": "blog-api-function",
+      "name": "Blog API Function",
+      "runtime": "node-18.0",
+      "path": ".",
+      "entrypoint": "src/main.js",
+      "ignore": [".git", "node_modules", ".env"],
+      "execute": ["any"],
+      "events": [],
+      "schedule": "",
+      "timeout": 15,
+      "enabled": true,
+      "logging": true,
+      "scopes": ["databases.read"],
+      "vars": {
+        "APPWRITE_ENDPOINT": "https://cloud.appwrite.io/v1",
+        "APPWRITE_PROJECT_ID": "",
+        "APPWRITE_DATABASE_ID": "",
+        "APPWRITE_POSTS_COLLECTION_ID": "posts",
+        "NODE_ENV": "production"
+      }
+    }
+  ]
+}
