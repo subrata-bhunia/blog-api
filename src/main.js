@@ -21,30 +21,81 @@ export default async ({ req, res, log, error }) => {
   const categoriesCollectionId = process.env.APPWRITE_CATEGORIES_COLLECTION_ID || "categories";
   const tagsCollectionId = process.env.APPWRITE_TAGS_COLLECTION_ID || "tags";
 
+  // Helper function to format post for list view (excludes large content field)
+  const formatPostForList = (post) => {
+    return {
+      id: post.$id,
+      clientId: post.clientId,
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt || null,
+      status: post.status,
+      featuredImage: post.featuredImage || null,
+      categories: post.categories || [],
+      tags: post.tags || [],
+      publishedAt: post.publishedAt || null,
+      createdAt: post.$createdAt,
+      updatedAt: post.$updatedAt
+    };
+  };
+
+  // Helper function to format post for detail view (includes all fields)
+  const formatPostForDetail = (post) => {
+    return {
+      id: post.$id,
+      clientId: post.clientId,
+      title: post.title,
+      slug: post.slug,
+      content: post.content,
+      excerpt: post.excerpt || null,
+      status: post.status,
+      featuredImage: post.featuredImage || null,
+      metaTitle: post.metaTitle || null,
+      metaDescription: post.metaDescription || null,
+      categories: post.categories || [],
+      tags: post.tags || [],
+      publishedAt: post.publishedAt || null,
+      createdAt: post.$createdAt,
+      updatedAt: post.$updatedAt
+    };
+  };
+
   // Helper function to populate category and tags
   const populatePostRelations = async (post) => {
     try {
-      // Populate category
-      if (post.categoryId) {
+      // Populate categories (return only id, name, slug, color)
+      if (post.categoryIds && Array.isArray(post.categoryIds) && post.categoryIds.length > 0) {
         try {
-          const category = await databases.getDocument(
-            databaseId,
-            categoriesCollectionId,
-            post.categoryId,
+          const categoryPromises = post.categoryIds.map((categoryId) =>
+            databases.getDocument(databaseId, categoriesCollectionId, categoryId)
+              .then(cat => ({
+                id: cat.$id,
+                name: cat.name,
+                slug: cat.slug,
+                color: cat.color || null
+              }))
+              .catch(() => null)
           );
-          post.category = category;
+          const categories = await Promise.all(categoryPromises);
+          post.categories = categories.filter(cat => cat !== null);
         } catch (err) {
-          post.category = null;
+          post.categories = [];
         }
       } else {
-        post.category = null;
+        post.categories = [];
       }
 
-      // Populate tags
+      // Populate tags (return only id, name, slug)
       if (post.tagIds && Array.isArray(post.tagIds) && post.tagIds.length > 0) {
         try {
           const tagPromises = post.tagIds.map((tagId) =>
-            databases.getDocument(databaseId, tagsCollectionId, tagId).catch(() => null),
+            databases.getDocument(databaseId, tagsCollectionId, tagId)
+              .then(tag => ({
+                id: tag.$id,
+                name: tag.name,
+                slug: tag.slug
+              }))
+              .catch(() => null)
           );
           const tags = await Promise.all(tagPromises);
           post.tags = tags.filter(tag => tag !== null);
@@ -56,7 +107,7 @@ export default async ({ req, res, log, error }) => {
       }
 
       // Remove the ID fields
-      delete post.categoryId;
+      delete post.categoryIds;
       delete post.tagIds;
 
       return post;
@@ -100,7 +151,10 @@ export default async ({ req, res, log, error }) => {
 
       // Populate category and tags for each post
       const populatedPosts = await Promise.all(
-        posts.documents.map(post => populatePostRelations(post))
+        posts.documents.map(async (post) => {
+          const populated = await populatePostRelations(post);
+          return formatPostForList(populated);
+        })
       );
 
       return res.json({
@@ -157,10 +211,11 @@ export default async ({ req, res, log, error }) => {
 
       // Populate category and tags
       const populatedPost = await populatePostRelations(post);
+      const formattedPost = formatPostForDetail(populatedPost);
 
       return res.json({
         success: true,
-        data: populatedPost,
+        data: formattedPost,
       });
     }
 
