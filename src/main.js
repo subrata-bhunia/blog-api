@@ -5,6 +5,12 @@ import { Client, Databases, Query } from "node-appwrite";
  * This function handles HTTP requests and interacts with Appwrite database
  */
 export default async ({ req, res, log, error }) => {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS, GET, PUT, DELETE",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Appwrite-Project, X-Appwrite-Key, X-Client-Id",
+  };
   // Handle preflight OPTIONS request
   if (req.method === "OPTIONS") {
     return res.empty();
@@ -23,7 +29,8 @@ export default async ({ req, res, log, error }) => {
   // Get database and collection IDs from environment
   const databaseId = process.env.APPWRITE_DATABASE_ID || "";
   const postsCollectionId = process.env.APPWRITE_POSTS_COLLECTION_ID || "posts";
-  const categoriesCollectionId = process.env.APPWRITE_CATEGORIES_COLLECTION_ID || "categories";
+  const categoriesCollectionId =
+    process.env.APPWRITE_CATEGORIES_COLLECTION_ID || "categories";
   const tagsCollectionId = process.env.APPWRITE_TAGS_COLLECTION_ID || "tags";
 
   // Helper function to format post for list view (excludes large content field)
@@ -40,7 +47,7 @@ export default async ({ req, res, log, error }) => {
       tags: post.tags || [],
       publishedAt: post.publishedAt || null,
       createdAt: post.$createdAt,
-      updatedAt: post.$updatedAt
+      updatedAt: post.$updatedAt,
     };
   };
 
@@ -61,7 +68,7 @@ export default async ({ req, res, log, error }) => {
       tags: post.tags || [],
       publishedAt: post.publishedAt || null,
       createdAt: post.$createdAt,
-      updatedAt: post.$updatedAt
+      updatedAt: post.$updatedAt,
     };
   };
 
@@ -69,20 +76,25 @@ export default async ({ req, res, log, error }) => {
   const populatePostRelations = async (post) => {
     try {
       // Populate categories (return only id, name, slug, color)
-      if (post.categoryIds && Array.isArray(post.categoryIds) && post.categoryIds.length > 0) {
+      if (
+        post.categoryIds &&
+        Array.isArray(post.categoryIds) &&
+        post.categoryIds.length > 0
+      ) {
         try {
           const categoryPromises = post.categoryIds.map((categoryId) =>
-            databases.getDocument(databaseId, categoriesCollectionId, categoryId)
-              .then(cat => ({
+            databases
+              .getDocument(databaseId, categoriesCollectionId, categoryId)
+              .then((cat) => ({
                 id: cat.$id,
                 name: cat.name,
                 slug: cat.slug,
-                color: cat.color || null
+                color: cat.color || null,
               }))
-              .catch(() => null)
+              .catch(() => null),
           );
           const categories = await Promise.all(categoryPromises);
-          post.categories = categories.filter(cat => cat !== null);
+          post.categories = categories.filter((cat) => cat !== null);
         } catch (err) {
           post.categories = [];
         }
@@ -94,16 +106,17 @@ export default async ({ req, res, log, error }) => {
       if (post.tagIds && Array.isArray(post.tagIds) && post.tagIds.length > 0) {
         try {
           const tagPromises = post.tagIds.map((tagId) =>
-            databases.getDocument(databaseId, tagsCollectionId, tagId)
-              .then(tag => ({
+            databases
+              .getDocument(databaseId, tagsCollectionId, tagId)
+              .then((tag) => ({
                 id: tag.$id,
                 name: tag.name,
-                slug: tag.slug
+                slug: tag.slug,
               }))
-              .catch(() => null)
+              .catch(() => null),
           );
           const tags = await Promise.all(tagPromises);
-          post.tags = tags.filter(tag => tag !== null);
+          post.tags = tags.filter((tag) => tag !== null);
         } catch (err) {
           post.tags = [];
         }
@@ -159,15 +172,19 @@ export default async ({ req, res, log, error }) => {
         posts.documents.map(async (post) => {
           const populated = await populatePostRelations(post);
           return formatPostForList(populated);
-        })
+        }),
       );
 
-      return res.json({
-        success: true,
-        data: populatedPosts,
-        total: posts.total,
-        clientId,
-      });
+      return res.json(
+        {
+          success: true,
+          data: populatedPosts,
+          total: posts.total,
+          clientId,
+        },
+        200,
+        corsHeaders,
+      );
     }
 
     // Route: GET /posts/:id - Fetch single post (validated by clientId)
@@ -191,7 +208,8 @@ export default async ({ req, res, log, error }) => {
         return res.json(
           {
             success: false,
-            message: "clientId is required. Provide it as query parameter (?clientId=xxx) or header (x-client-id)",
+            message:
+              "clientId is required. Provide it as query parameter (?clientId=xxx) or header (x-client-id)",
           },
           400,
         );
@@ -218,34 +236,54 @@ export default async ({ req, res, log, error }) => {
       const populatedPost = await populatePostRelations(post);
       const formattedPost = formatPostForDetail(populatedPost);
 
-      return res.json({
-        success: true,
-        data: formattedPost,
-      });
+      return res.json(
+        {
+          success: true,
+          data: formattedPost,
+        },
+        200,
+        corsHeaders,
+      );
     }
 
     // Route: GET /health - Health check
     if (path === "/health" && method === "GET") {
-      return res.json({
-        success: true,
-        message: "Appwrite Function is healthy",
-        timestamp: new Date().toISOString(),
-      });
+      return res.json(
+        {
+          success: true,
+          message: "Appwrite Function is healthy",
+          timestamp: new Date().toISOString(),
+        },
+        200,
+        corsHeaders,
+      );
     }
 
     // Default route
     if (path === "/" && method === "GET") {
-      return res.json({
-        success: true,
-        message: "Blog CMS Appwrite Function",
-        version: "1.0.0",
-        endpoints: [
-          { path: "/", method: "GET", description: "API information" },
-          { path: "/health", method: "GET", description: "Health check" },
-          { path: "/posts?clientId=xxx", method: "GET", description: "List posts by clientId" },
-          { path: "/posts/:id?clientId=xxx", method: "GET", description: "Get single post by clientId" },
-        ],
-      });
+      return res.json(
+        {
+          success: true,
+          message: "Blog CMS Appwrite Function",
+          version: "1.0.0",
+          endpoints: [
+            { path: "/", method: "GET", description: "API information" },
+            { path: "/health", method: "GET", description: "Health check" },
+            {
+              path: "/posts?clientId=xxx",
+              method: "GET",
+              description: "List posts by clientId",
+            },
+            {
+              path: "/posts/:id?clientId=xxx",
+              method: "GET",
+              description: "Get single post by clientId",
+            },
+          ],
+        },
+        200,
+        corsHeaders,
+      );
     }
 
     // 404 - Route not found
@@ -257,6 +295,7 @@ export default async ({ req, res, log, error }) => {
         method,
       },
       404,
+      corsHeaders,
     );
   } catch (err) {
     error("Function execution failed: " + err.message);
@@ -268,6 +307,7 @@ export default async ({ req, res, log, error }) => {
         error: process.env.NODE_ENV === "development" ? err.message : undefined,
       },
       500,
+      corsHeaders,
     );
   }
 };
