@@ -5,6 +5,19 @@ import { Client, Databases, Query } from "node-appwrite";
  * This function handles HTTP requests and interacts with Appwrite database
  */
 export default async ({ req, res, log, error }) => {
+  // Set CORS headers for all requests
+  res.headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-id",
+    "Access-Control-Max-Age": "86400"
+  };
+
+  // Handle preflight OPTIONS request
+  if (req.method === "OPTIONS") {
+    return res.send("", 204);
+  }
+
   // Initialize Appwrite client
   const client = new Client()
     .setEndpoint(
